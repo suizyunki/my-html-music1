@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>水準琴 Bubble Level Harp 1</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        :root {
+            --bubble-glow: rgba(0, 240, 255, 0.4);
+            --water-accent: #06b6d4;
+        }
+        body {
+            background-color: #050a12;
+            color: #e2e8f0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            touch-action: none;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+        .glow-water {
+            box-shadow: 0 0 35px var(--bubble-glow);
+        }
+        /* 背景の薄い水準器グリッド */
+        .grid-pattern {
+            background-image: 
+                linear-gradient(rgba(6, 182, 212, 0.07) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(6, 182, 212, 0.07) 1px, transparent 1px);
+            background-size: 32px 32px;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between items-center p-3 select-none relative overflow-x-hidden">
+
+    <!-- 背景グリッド -->
+    <div id="bgGrid" class="absolute inset-0 grid-pattern pointer-events-none transition-transform duration-100 ease-out z-0"></div>
+
+    <!-- Header Section -->
+    <header class="text-center w-full max-w-lg my-1 z-10">
+        <div class="flex items-center justify-between px-2">
+            <span class="text-[10px] tracking-widest text-cyan-500 font-mono">OPTICAL LIQUID SYNTH</span>
+            <span id="scaleModeTag" class="text-[10px] px-2 py-0.5 rounded bg-cyan-950 border border-cyan-800 text-cyan-300">Continuous</span>
+        </div>
+        <h1 class="text-2xl sm:text-3xl font-black tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-teal-200 to-sky-400 drop-shadow-sm">
+            水準琴 Bubble Level Harp 1
+        </h1>
+        <p class="text-[11px] text-gray-400">
+            水球の傾きと回転スリットが生み出す次世代エレクトロニクス琴
+        </p>
+    </header>
+
+    <!-- Main Water Sphere & Interactive Visualizer -->
+    <main class="w-full max-w-sm flex flex-col items-center my-auto z-10">
+        <div class="relative w-full aspect-square max-w-[320px] flex items-center justify-center my-1">
+            <!-- Canvas: 水球、スリットディスク、気泡、光線の統合描画 -->
+            <canvas id="harpCanvas" class="w-full h-full rounded-full border-2 border-cyan-500/30 glow-water cursor-pointer bg-slate-950/70 backdrop-blur-md"></canvas>
+            
+            <!-- サウンドエンジン起動オーバーレイ -->
+            <button id="startOverlay" class="absolute inset-0 m-auto w-4/5 h-16 bg-gradient-to-r from-cyan-500 to-teal-400 hover:from-cyan-400 hover:to-teal-300 text-gray-950 font-extrabold rounded-2xl shadow-xl flex items-center justify-center text-base tracking-wider transition transform hover:scale-105 active:scale-95 border border-cyan-200/50">
+                ⚡ サウンドエンジン起動
+            </button>
+        </div>
+
+        <!-- テレメトリ（リアルタイム計器盤） -->
+        <div class="w-full grid grid-cols-4 gap-1.5 my-2 text-center text-xs font-mono bg-gray-900/90 p-2.5 rounded-xl border border-cyan-900/40 backdrop-blur-sm shadow-inner">
+            <div class="bg-gray-950/80 p-1.5 rounded-lg border border-gray-800">
+                <span class="text-gray-400 block text-[9px]">前後 Tilt(β)</span>
+                <span id="pitchAngleDisplay" class="text-cyan-400 text-sm font-bold">0°</span>
+            </div>
+            <div class="bg-gray-950/80 p-1.5 rounded-lg border border-gray-800">
+                <span class="text-gray-400 block text-[9px]">左右 Filter(γ)</span>
+                <span id="rollAngleDisplay" class="text-teal-400 text-sm font-bold">0°</span>
+            </div>
+            <div class="bg-gray-950/80 p-1.5 rounded-lg border border-gray-800">
+                <span class="text-gray-400 block text-[9px]">周波数</span>
+                <span id="freqDisplay" class="text-amber-300 text-sm font-bold">0.0Hz</span>
+            </div>
+            <div class="bg-gray-950/80 p-1.5 rounded-lg border border-gray-800">
+                <span class="text-gray-400 block text-[9px]">音階 / 音名</span>
+                <span id="noteDisplay" class="text-emerald-400 text-sm font-bold">---</span>
+            </div>
+        </div>
+
+        <!-- 演奏コントロールパネル -->
+        <div class="w-full space-y-3 bg-gray-900/80 p-3.5 rounded-2xl border border-cyan-950/60 backdrop-blur-sm">
+            
+            <!-- スライダー（手動 / ジャイロ連動RPM表示） -->
+            <div>
+                <div class="flex justify-between text-[11px] font-semibold mb-1">
+                    <label for="speedSlider" class="text-cyan-300 flex items-center gap-1">
+                        <span>水流モーター出力 (RPM)</span>
+                    </label>
+                    <span id="targetRpmText" class="text-gray-400 font-mono">0 RPM</span>
+                </div>
+                <input id="speedSlider" type="range" min="0" max="2400" value="0" class="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-400">
+            </div>
+
+            <!-- 円盤の穴数（オクターブ・トラック切り替え） -->
+            <div>
+                <div class="flex justify-between text-[11px] font-semibold mb-1">
+                    <span class="text-teal-300">気泡スリット数 (オクターブ跳躍)</span>
+                    <span id="holesText" class="text-gray-400 text-[10px]">8穴 (標準)</span>
+                </div>
+                <div class="grid grid-cols-4 gap-1.5">
+                    <button data-holes="4" class="hole-btn py-1 text-xs bg-gray-800 hover:bg-gray-700 text-gray-200 rounded-lg font-medium border border-gray-700 transition">4 穴</button>
+                    <button data-holes="8" class="hole-btn py-1 text-xs bg-cyan-500 text-gray-950 rounded-lg font-bold border border-cyan-400 transition">8 穴</button>
+                    <button data-holes="12" class="hole-btn py-1 text-xs bg-gray-800 hover:bg-gray-700 text-gray-200 rounded-lg font-medium border border-gray-700 transition">12 穴</button>
+                    <button data-holes="16" class="hole-btn py-1 text-xs bg-gray-800 hover:bg-gray-700 text-gray-200 rounded-lg font-medium border border-gray-700 transition">16 穴</button>
+                </div>
+            </div>
+
+            <!-- 音階スナップ & 音色(波形) 選択 -->
+            <div class="grid grid-cols-2 gap-2">
+                <div>
+                    <label class="text-[10px] text-gray-400 block mb-1">音階スナップ (Pitch Snap)</label>
+                    <select id="scaleSelect" class="w-full bg-gray-950 border border-gray-800 text-xs text-cyan-300 p-1.5 rounded-lg focus:outline-none focus:border-cyan-500 font-sans">
+                        <option value="none">シームレス (テルミン風)</option>
+                        <option value="major">メジャースケール (ドレミ...)</option>
+                        <option value="pentatonic">ペンタトニック (民謡・和風)</option>
+                        <option value="chromatic">半音階 (12平均律)</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="text-[10px] text-gray-400 block mb-1">波形 (音色)</label>
+                    <select id="waveType" class="w-full bg-gray-950 border border-gray-800 text-xs text-gray-200 p-1.5 rounded-lg focus:outline-none focus:border-cyan-500">
+                        <option value="sawtooth">Sawtooth (鋸波 / 扇風琴風)</option>
+                        <option value="square">Square (矩形波 / 8bit風)</option>
+                        <option value="sine">Sine (正弦波 / 水琴風)</option>
+                        <option value="triangle">Triangle (三角波)</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- 傾きセンサ (Gyro) ＆ 零点キャリブレーション -->
+            <div class="flex items-center justify-between pt-2 border-t border-gray-800/80">
+                <div class="flex items-center gap-1.5">
+                    <button id="gyroToggle" class="px-3 py-1 text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-full border border-gray-700 transition flex items-center gap-1">
+                        📱 Gyro: OFF
+                    </button>
+                    <button id="calibBtn" class="px-2.5 py-1 text-[11px] bg-cyan-950/70 hover:bg-cyan-900 text-cyan-300 rounded-full border border-cyan-800/80 transition" title="現在のスマホの角度を基準点(0°)にリセット">
+                        🎯 基準角設定
+                    </button>
+                </div>
+                <span id="gyroStatus" class="text-[10px] text-gray-500 font-mono">ジャイロ停止中</span>
+            </div>
+        </div>
+    </main>
+
+    <!-- ガイド & 物理・音響解説 -->
+    <footer class="w-full max-w-lg mt-3 text-xs text-gray-400 bg-gray-900/60 p-3.5 rounded-xl border border-gray-800 space-y-2 z-10">
+        <div class="text-cyan-400 font-semibold flex items-center justify-between">
+            <span>💧 水準琴 演奏ガイド</span>
+            <span class="text-[10px] text-gray-500 font-normal">扇風琴 × 水準器</span>
+        </div>
+        <ul class="list-disc list-inside space-y-1 text-[11px] leading-relaxed text-gray-300">
+            <li><strong class="text-cyan-300">2軸傾き演奏：</strong> スマホを<strong>前後に傾ける</strong>と回転数（音高）が上昇。<strong>左右に傾ける</strong>と液浸フィルターが開き、音色と音量が華やかに変化します。</li>
+            <li><strong class="text-teal-300">基準角設定 (キャリブレーション)：</strong> 寝転び・立位など自分の持ちやすい角度で「🎯 基準角設定」を押すと、その傾きが0°基準になります。</li>
+            <li><strong class="text-amber-300">音階スナップ：</strong> 「メジャー」や「ペンタトニック」を選ぶと、傾きがスケール音程へ自動吸着し、誰でも心地よいメロディが弾けます。</li>
+            <li><strong class="text-rose-400">ハンドブレーキ（長押し）：</strong> 水球を指で押さえると、強い粘性摩擦がかかりピッチベンド・ビブラート・停止ができます。</li>
+        </ul>
+    </footer>
+
+    <!-- アプリケーションロジック -->
+    <script>
+        // --- Canvas & Core Elements ---
+        const canvas = document.getElementById('harpCanvas');
+        const ctx = canvas.getContext('2d');
+        const bgGrid = document.getElementById('bgGrid');
+        const startOverlay = document.getElementById('startOverlay');
+        
+        // UI Telemetry
+        const pitchAngleDisplay = document.getElementById('pitchAngleDisplay');
+        const rollAngleDisplay = document.getElementById('rollAngleDisplay');
+        const freqDisplay = document.getElementById('freqDisplay');
+        const noteDisplay = document.getElementById('noteDisplay');
+        const targetRpmText = document.getElementById('targetRpmText');
+        const speedSlider = document.getElementById('speedSlider');
+        const holesText = document.getElementById('holesText');
+        const scaleModeTag = document.getElementById('scaleModeTag');
+        const gyroStatus = document.getElementById('gyroStatus');
+
+        // Controls
+        const waveTypeSelect = document.getElementById('waveType');
+        const scaleSelect = document.getElementById('scaleSelect');
+        const gyroToggleBtn = document.getElementById('gyroToggle');
+        const calibBtn = document.getElementById('calibBtn');
+        const holeBtns = document.querySelectorAll('.hole-btn');
+
+        // High DPI Canvas Scaling
+        function resizeCanvas() {
+            const rect = canvas.getBoundingClientRect();
+            canvas.width = rect.width * window.devicePixelRatio;
+            canvas.height = rect.height * window.devicePixelRatio;
+        }
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+
+        // --- Audio Context & Nodes ---
+        let audioCtx = null;
+        let osc = null;
+        let gainNode = null;
+        let filterNode = null;
+        let isAudioStarted = false;
+
+        // --- Physics & Synthesizer State ---
+        let currentRPM = 0;
+        let targetRPM = 0;
+        let discAngle = 0;
+        let numHoles = 8;
+        let isHandTouching = false;
+
+        // Gyroscope Variables
+        let gyroActive = false;
+        let rawBeta = 0;  // 前後傾き
+        let rawGamma = 0; // 左右傾き
+        let offsetBeta = 15; // デフォルトニュートラル角（スマホを斜めに構える角度）
+        let offsetGamma = 0;
+
+        // 水滴・気泡の物理慣性 (Spring-Damper)
+        let bubbleX = 0, bubbleY = 0;
+        let bubbleVelX = 0, bubbleVelY = 0;
+
+        // Note Names & Scales
+        const NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+        const SCALE_PRESETS = {
+            none: null,
+            chromatic: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
+            major: [0, 2, 4, 5, 7, 9, 11],            // ドレミファソラシ
+            pentatonic: [0, 2, 4, 7, 9]               // ヨナ抜き/ペンタトニック
+        };
+
+        // --- Audio Engine Initialization ---
+        function initAudio() {
+            if (audioCtx) {
+                if (audioCtx.state === 'suspended') audioCtx.resume();
+                return;
+            }
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            audioCtx = new AudioContext();
+
+            osc = audioCtx.createOscillator();
+            filterNode = audioCtx.createBiquadFilter();
+            gainNode = audioCtx.createGain();
+
+            osc.type = waveTypeSelect.value;
+            osc.frequency.setValueAtTime(0, audioCtx.currentTime);
+
+            // 左右の傾きで操る液体ローパスフィルター
+            filterNode.type = "lowpass";
+            filterNode.frequency.setValueAtTime(1000, audioCtx.currentTime);
+            filterNode.Q.setValueAtTime(3.0, audioCtx.currentTime);
+
+            gainNode.gain.setValueAtTime(0, audioCtx.currentTime);
+
+            // Osc -> Filter -> Gain -> Destination
+            osc.connect(filterNode);
+            filterNode.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            osc.start();
+
+            isAudioStarted = true;
+            startOverlay.classList.add('hidden');
+        }
+
+        startOverlay.addEventListener('click', initAudio);
+
+        waveTypeSelect.addEventListener('change', (e) => {
+            if (osc) osc.type = e.target.value;
+        });
+
+        scaleSelect.addEventListener('change', (e) => {
+            const labels = {
+                none: 'Continuous',
+                major: 'Major Scale',
+                pentatonic: 'Pentatonic',
+                chromatic: 'Chromatic'
+            };
+            scaleModeTag.textContent = labels[e.target.value];
+        });
+
+        // Track (Holes) Switching
+        holeBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                numHoles = parseInt(btn.getAttribute('data-holes'));
+                holeBtns.forEach(b => {
+                    b.className = "hole-btn py-1 text-xs bg-gray-800 hover:bg-gray-700 text-gray-200 rounded-lg font-medium border border-gray-700 transition";
+                });
+                btn.className = "hole-btn py-1 text-xs bg-cyan-500 text-gray-950 rounded-lg font-bold border border-cyan-400 transition";
+                holesText.textContent = `${numHoles} 穴`;
+            });
+        });
+
+        // Speed Slider Direct Input
+        speedSlider.addEventListener('input', (e) => {
+            targetRPM = parseFloat(e.target.value);
+            targetRpmText.textContent = `${Math.round(targetRPM)} RPM`;
+        });
+
+        // Hand Brake Friction Interaction
+        function onPointerDown(e) {
+            if (!isAudioStarted) initAudio();
+            isHandTouching = true;
+        }
+        function onPointerUp() {
+            isHandTouching = false;
+        }
+
+        canvas.addEventListener('pointerdown', onPointerDown);
+        window.addEventListener('pointerup', onPointerUp);
+        canvas.addEventListener('pointercancel', onPointerUp);
+
+        // --- Pitch Snap Logic ---
+        function snapFrequencyToScale(rawFreq, scaleType) {
+            if (rawFreq < 30 || !SCALE_PRESETS[scaleType]) return rawFreq;
+
+            const scale = SCALE_PRESETS[scaleType];
+            // 440Hz (A4 = note 69)
+            const noteNum = 12 * Math.log2(rawFreq / 440) + 69;
+            const baseOctave = Math.floor(noteNum / 12);
+            const pitchClass = ((Math.round(noteNum) % 12) + 12) % 12;
+
+            // スケール内の最も近い音を探す
+            let closestPc = scale[0];
+            let minDiff = 999;
+            for (let note of scale) {
+                let diff = Math.abs(pitchClass - note);
+                if (diff < minDiff) {
+                    minDiff = diff;
+                    closestPc = note;
+                }
+            }
+
+            const snappedNoteNum = baseOctave * 12 + closestPc;
+            return 440 * Math.pow(2, (snappedNoteNum - 69) / 12);
+        }
+
+        function freqToNoteName(freq) {
+            if (freq < 20) return "---";
+            const noteNum = 12 * Math.log2(freq / 440) + 69;
+            const roundedNote = Math.round(noteNum);
+            const noteIndex = ((roundedNote % 12) + 12) % 12;
+            const octave = Math.floor(roundedNote / 12) - 1;
+            return `${NOTE_NAMES[noteIndex]}${octave}`;
+        }
+
+        // --- Gyroscope & Motion Sensor Logic ---
+        gyroToggleBtn.addEventListener('click', async () => {
+            if (!gyroActive) {
+                // iOS 13+ permission flow
+                if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+                    try {
+                        const state = await DeviceOrientationEvent.requestPermission();
+                        if (state === 'granted') {
+                            enableGyro();
+                        } else {
+                            alert('ジャイロセンサーの利用が拒否されました。ブラウザの設定からモーションセンサーを許可してください。');
+                        }
+                    } catch (err) {
+                        console.warn(err);
+                        enableGyro();
+                    }
+                } else {
+                    enableGyro();
+                }
+            } else {
+                disableGyro();
+            }
+        });
+
+        // 基準角設定（キャリブレーション）
+        calibBtn.addEventListener('click', () => {
+            offsetBeta = rawBeta;
+            offsetGamma = rawGamma;
+            if (navigator.vibrate) navigator.vibrate(40);
+            gyroStatus.textContent = "基準角リセット完了";
+            setTimeout(() => {
+                if (gyroActive) gyroStatus.textContent = "ジャイロ演奏中";
+            }, 1500);
+        });
+
+        function enableGyro() {
+            gyroActive = true;
+            gyroToggleBtn.innerHTML = "📱 Gyro: ON";
+            gyroToggleBtn.className = "px-3 py-1 text-xs bg-cyan-500 text-gray-950 font-bold rounded-full border border-cyan-400 shadow-md shadow-cyan-500/40";
+            gyroStatus.textContent = "ジャイロ演奏中";
+            gyroStatus.className = "text-[10px] text-cyan-400 font-semibold";
+            window.addEventListener('deviceorientation', handleOrientation, true);
+        }
+
+        function disableGyro() {
+            gyroActive = false;
+            gyroToggleBtn.innerHTML = "📱 Gyro: OFF";
+            gyroToggleBtn.className = "px-3 py-1 text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-full border border-gray-700";
+            gyroStatus.textContent = "ジャイロ停止中";
+            gyroStatus.className = "text-[10px] text-gray-500 font-mono";
+            window.removeEventListener('deviceorientation', handleOrientation, true);
+        }
+
+        function handleOrientation(e) {
+            if (!gyroActive) return;
+            
+            rawBeta = e.beta || 0;
+            rawGamma = e.gamma || 0;
+
+            // 基準角からの差分（Delta）
+            const deltaBeta = rawBeta - offsetBeta;   // 前後
+            const deltaGamma = rawGamma - offsetGamma; // 左右
+
+            // 前後傾き(-5° 〜 50°)を 0 〜 2400 RPM にマッピング
+            const minAngle = 0;
+            const maxAngle = 45;
+            const clamped = Math.max(minAngle, Math.min(maxAngle, deltaBeta));
+            const norm = clamped / maxAngle;
+            targetRPM = Math.round(norm * 2400);
+
+            speedSlider.value = targetRPM;
+            targetRpmText.textContent = `${Math.round(targetRPM)} RPM`;
+
+            pitchAngleDisplay.textContent = `${Math.round(deltaBeta)}°`;
+            rollAngleDisplay.textContent = `${Math.round(deltaGamma)}°`;
+
+            // 背景グリッドをジャイロの傾きに合わせてリアルタイム移動（水準器効果）
+            bgGrid.style.transform = `translate(${deltaGamma * 1.5}px, ${deltaBeta * 1.5}px)`;
+        }
+
+        // --- Physics & Render Loop ---
+        let lastTime = performance.now();
+
+        function animate(currentTime) {
+            const dt = Math.min((currentTime - lastTime) / 1000, 0.1);
+            lastTime = currentTime;
+
+            // 1. 水流モーターの物理慣性計算
+            const effectiveTarget = isHandTouching ? 0 : targetRPM;
+            const inertiaRate = isHandTouching ? 9.0 : 2.8; // ハンドブレーキ時は急速制動
+            currentRPM += (effectiveTarget - currentRPM) * inertiaRate * dt;
+            if (currentRPM < 0.2) currentRPM = 0;
+
+            // 2. ディスク回転
+            const rps = currentRPM / 60;
+            discAngle += rps * 2 * Math.PI * dt;
+
+            // 3. 周波数計算 & スケールスナップ
+            const rawFreq = rps * numHoles;
+            const activeScale = scaleSelect.value;
+            const finalFreq = snapFrequencyToScale(rawFreq, activeScale);
+
+            // 4. 水準気泡の物理挙動 (Spring Physics)
+            const targetBubbleX = (gyroActive ? (rawGamma - offsetGamma) : 0) * 1.8;
+            const targetBubbleY = (gyroActive ? (rawBeta - offsetBeta) : 0) * -1.8;
+            
+            // バネと減衰で水球内の泡がプルプル動く
+            const springK = 6.0;
+            const damping = 0.82;
+            bubbleVelX += (targetBubbleX - bubbleX) * springK * dt;
+            bubbleVelY += (targetBubbleY - bubbleY) * springK * dt;
+            bubbleVelX *= damping;
+            bubbleVelY *= damping;
+            bubbleX += bubbleVelX;
+            bubbleY += bubbleVelY;
+
+            // 5. オーディオシンセサイズ更新
+            if (isAudioStarted && audioCtx && osc) {
+                if (finalFreq > 15) {
+                    osc.frequency.setTargetAtTime(finalFreq, audioCtx.currentTime, 0.035);
+
+                    // 左右傾き（Gamma）でフィルター周波数と音量をダイナミクス制御
+                    const gammaEffect = Math.min(1.0, Math.abs(rawGamma - offsetGamma) / 35);
+                    const cutoff = 400 + gammaEffect * 4200; // 400Hz 〜 4600Hz
+                    filterNode.frequency.setTargetAtTime(cutoff, audioCtx.currentTime, 0.04);
+
+                    // 光学明滅による振幅変調（扇風琴の受光パルスを再現）
+                    const opticalFlutter = 0.18 + Math.abs(Math.sin(discAngle * numHoles)) * 0.08;
+                    const finalGain = (0.2 + gammaEffect * 0.2) * (opticalFlutter / 0.26);
+                    gainNode.gain.setTargetAtTime(finalGain, audioCtx.currentTime, 0.02);
+                } else {
+                    gainNode.gain.setTargetAtTime(0, audioCtx.currentTime, 0.04);
+                }
+            }
+
+            // 6. テレメトリ更新
+            freqDisplay.textContent = finalFreq > 0 ? `${finalFreq.toFixed(1)}Hz` : "0.0Hz";
+            noteDisplay.textContent = freqToNoteName(finalFreq);
+
+            // 7. ビジュアル描画
+            drawHarpCanvas(rps, finalFreq);
+
+            requestAnimationFrame(animate);
+        }
+
+        // --- Canvas Rendering (Water Sphere & Slit Disc) ---
+        function drawHarpCanvas(rps, currentFreq) {
+            const w = canvas.width;
+            const h = canvas.height;
+            const cx = w / 2;
+            const cy = h / 2;
+            const radius = Math.min(w, h) * 0.44;
+
+            ctx.clearRect(0, 0, w, h);
+
+            // A. 水球の外枠・水面グラデーション
+            const waterGrad = ctx.createRadialGradient(cx - radius*0.3, cy - radius*0.3, radius*0.1, cx, cy, radius);
+            waterGrad.addColorStop(0, 'rgba(34, 211, 238, 0.35)');
+            waterGrad.addColorStop(0.6, 'rgba(8, 145, 178, 0.2)');
+            waterGrad.addColorStop(1, 'rgba(15, 23, 42, 0.85)');
+            
+            ctx.fillStyle = waterGrad;
+            ctx.beginPath();
+            ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+            ctx.fill();
+
+            // 水球のガラスリム（縁の光沢）
+            ctx.lineWidth = 3;
+            ctx.strokeStyle = 'rgba(103, 232, 249, 0.5)';
+            ctx.stroke();
+
+            // B. 光学ピックアップの受光ビーム（上部LED）
+            const sensorX = cx;
+            const sensorY = cy - radius * 0.65;
+            const beamGrad = ctx.createRadialGradient(sensorX, sensorY, 2, sensorX, sensorY, 45);
+            beamGrad.addColorStop(0, 'rgba(254, 240, 138, 0.9)');
+            beamGrad.addColorStop(0.3, 'rgba(56, 189, 248, 0.6)');
+            beamGrad.addColorStop(1, 'rgba(6, 182, 212, 0)');
+
+            ctx.fillStyle = beamGrad;
+            ctx.beginPath();
+            ctx.arc(sensorX, sensorY, 45, 0, Math.PI * 2);
+            ctx.fill();
+
+            // C. 回転スリットディスク（水中の光学円盤）
+            ctx.save();
+            ctx.translate(cx, cy);
+            ctx.rotate(discAngle);
+
+            // スリットディスクのリングパターン
+            ctx.strokeStyle = 'rgba(148, 163, 184, 0.25)';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.arc(0, 0, radius * 0.65, 0, Math.PI * 2);
+            ctx.stroke();
+
+            // 気泡スリット（光を通す穴）
+            for (let i = 0; i < numHoles; i++) {
+                const angle = (i / numHoles) * Math.PI * 2;
+                const hx = Math.cos(angle) * (radius * 0.65);
+                const hy = Math.sin(angle) * (radius * 0.65);
+
+                // 穴のくり抜き・光彩
+                ctx.beginPath();
+                ctx.arc(hx, hy, 9, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(6, 182, 212, 0.85)';
+                ctx.fill();
+                ctx.strokeStyle = '#e0f2fe';
+                ctx.lineWidth = 1.5;
+                ctx.stroke();
+
+                // 穴の中心コア
+                ctx.beginPath();
+                ctx.arc(hx, hy, 3, 0, Math.PI * 2);
+                ctx.fillStyle = '#ffffff';
+                ctx.fill();
+            }
+
+            // 中心のハブ（水流タービン）
+            ctx.fillStyle = 'rgba(14, 116, 144, 0.7)';
+            ctx.beginPath();
+            ctx.arc(0, 0, radius * 0.2, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = 'rgba(103, 232, 249, 0.6)';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            ctx.restore();
+
+            // D. 水準器の液中メイン気泡（傾きに応じて浮遊する気泡）
+            const bX = Math.max(-radius * 0.55, Math.min(radius * 0.55, cx + bubbleX * 1.5));
+            const bY = Math.max(-radius * 0.55, Math.min(radius * 0.55, cy + bubbleY * 1.5));
+            const bubbleSize = 28;
+
+            const bubbleGrad = ctx.createRadialGradient(bX - 6, bY - 6, 2, bX, bY, bubbleSize);
+            bubbleGrad.addColorStop(0, 'rgba(255, 255, 255, 0.85)');
+            bubbleGrad.addColorStop(0.4, 'rgba(165, 243, 252, 0.4)');
+            bubbleGrad.addColorStop(1, 'rgba(6, 182, 212, 0.05)');
+
+            ctx.fillStyle = bubbleGrad;
+            ctx.beginPath();
+            ctx.arc(bX, bY, bubbleSize, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+
+            // E. 光学受光部（トップセンサー）
+            ctx.fillStyle = '#fbbf24';
+            ctx.beginPath();
+            ctx.arc(sensorX, sensorY, 5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            // F. ハンドブレーキ（摩擦抑え込み）のフィードバック
+            if (isHandTouching) {
+                ctx.fillStyle = 'rgba(244, 63, 94, 0.25)';
+                ctx.beginPath();
+                ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.fillStyle = '#fda4af';
+                ctx.font = 'bold 13px monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText('✋ HYDRO BRAKE (HOLDING)', cx, cy + 6);
+            }
+        }
+
+        // アニメーションループ開始
+        requestAnimationFrame(animate);
+    </script>
+</body>
+</html>
